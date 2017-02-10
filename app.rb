@@ -5,6 +5,7 @@ require 'rss'
 require 'mechanize'
 require 'logger'
 require 'dm-validations'
+require 'addressable'
 
 DataMapper.setup(:default, "sqlite3://#{Dir.pwd}/database.db")
 class Article
@@ -52,7 +53,7 @@ scheduler.cron '0 4,10,16,22 * * * Europe/Warsaw' do
 				   else
 					   item.link
 				   end
-			Article.create(:url => Addressable::URI.parse(link), :cyber_count => get_cyber(link))
+			Article.create(:url => Addressable::URI.parse(link), :cyber_count => get_cyber(link), :feed => Addressable::URI.parse(feed))
 		end
 		rescue => e
 			@logger.error "encountered an error while processing #{feed} #{e}"
