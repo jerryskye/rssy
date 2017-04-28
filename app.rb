@@ -32,6 +32,8 @@ def get_cyber url
 end
 
 @mechanize = Mechanize.new
+@mechanize.log = Logger.new('mechanize.log')
+@mechanize.log.datetime_format = "%d/%m/%y %H:%M:%S %z "
 scheduler = Rufus::Scheduler.new
 feeds = YAML.load_file('feeds.yml')
 @logger = Logger.new('usage.log')
@@ -59,6 +61,8 @@ scheduler.cron '0 4,10,16,22 * * * Europe/Warsaw' do
 			@logger.error "encountered an error while processing #{feed} #{e}"
 		end
 	end
+	@logger.info "Clearing all cookies and history..."
+	@mechanize.reset
 	@logger.info "Job ended. Added #{Article.count - count} new articles to the database."
 end
 
