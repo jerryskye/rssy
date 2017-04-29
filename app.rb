@@ -1,4 +1,3 @@
-require 'pry'
 require 'rufus-scheduler'
 require 'data_mapper'
 require 'rss'
@@ -7,7 +6,8 @@ require 'logger'
 require 'dm-validations'
 require 'addressable'
 
-DataMapper.setup(:default, "sqlite3://#{Dir.pwd}/database.db")
+MYDIR = File.expand_path(File.dirname(__FILE__))
+DataMapper.setup(:default, "sqlite3://#{MYDIR}/database.db")
 class Article
 	include DataMapper::Resource
 	property :id, Serial
@@ -32,38 +32,29 @@ def get_cyber url
 end
 
 @mechanize = Mechanize.new
-@mechanize.log = Logger.new('mechanize.log')
-@mechanize.log.datetime_format = "%d/%m/%y %H:%M:%S %z "
 scheduler = Rufus::Scheduler.new
-feeds = YAML.load_file('feeds.yml')
-@logger = Logger.new('usage.log')
+feeds = YAML.load_file("#{MYDIR}/feeds.yml")
+@logger = Logger.new("#{MYDIR}/usage.log")
 @logger.datetime_format = "%d/%m/%y %H:%M:%S %z "
 
-unless ARGV.empty?
-	pry
-	Kernel.exit
-end
-
-scheduler.cron '0 4,10,16,22 * * * Europe/Warsaw' do
-	@logger.info 'Job started. Checking for new articles.'
-	count = Article.count
-	feeds.each do |feed|
+@logger.info 'Job started. Checking for new articles.'
+count = Article.count
+feeds.each do |feed|
+	begin
+	RSS::Parser.parse(@mechanize.get(feed).content, false).items.each do |item|
 		begin
-		RSS::Parser.parse(@mechanize.get(feed).content, false).items.each do |item|
-			link = case item
-				   when RSS::Atom::Feed::Entry then item.link.href
-				   else
-					   item.link
-				   end
-			Article.create(:url => Addressable::URI.parse(link), :cyber_count => get_cyber(link), :feed => Addressable::URI.parse(feed))
-		end
+		link = case item
+				 when RSS::Atom::Feed::Entry then item.link.href
+				 else
+					 item.link
+				 end
+		Article.create(:url => Addressable::URI.parse(link), :cyber_count => get_cyber(link), :feed => Addressable::URI.parse(feed))
 		rescue => e
-			@logger.error "encountered an error while processing #{feed} #{e}"
+			@logger.error "encountered an error when processing article #{link} #{e}"
 		end
 	end
-	@logger.info "Clearing all cookies and history..."
-	@mechanize.reset
-	@logger.info "Job ended. Added #{Article.count - count} new articles to the database."
+	rescue => e
+		@logger.error "encountered an error while processing #{feed} #{e}"
+	end
 end
-
-scheduler.join
+@logger.info "Job ended. Added #{Article.count - count} new articles to the database."
